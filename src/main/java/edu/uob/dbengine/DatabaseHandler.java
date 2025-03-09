@@ -1,6 +1,7 @@
 package edu.uob.dbengine;
 
 import edu.uob.outputprocessor.Logger;
+import edu.uob.outputprocessor.Result;
 
 public class DatabaseHandler {
 
@@ -13,7 +14,11 @@ public class DatabaseHandler {
 
     public void parseQuery(String query) {
         QueryParser queryParser = new QueryParser(operationHandler,query);
-        Logger.logResult(queryParser.parse().value);
+        if (queryParser.parse() == Result.SUCCESS) {
+            Logger.insertLog(0, Result.SUCCESS.value);
+        } else {
+            Logger.insertLog(0, Result.FAILURE.value);
+        }
     }
 
 }

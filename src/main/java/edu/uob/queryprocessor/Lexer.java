@@ -137,7 +137,7 @@ public class Lexer {
 
             // Return the appropriate token based on the symbol
             switch (symbol) {
-                case ";": return new Token(TokenType.SEMICOLON, symbol);
+                case ";": return new Token(TokenType.END, symbol);
                 case "(": return new Token(TokenType.LEFT_PAREN, symbol);
                 case ")": return new Token(TokenType.RIGHT_PAREN, symbol);
                 case ",": return new Token(TokenType.COMMA, symbol);

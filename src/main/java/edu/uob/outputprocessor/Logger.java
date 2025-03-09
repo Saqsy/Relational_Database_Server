@@ -16,4 +16,8 @@ public class Logger {
         builder = new StringBuilder();
     }
 
+    public static void insertLog(int offset, String log) {
+        builder.insert(offset, log);
+    }
+
 }

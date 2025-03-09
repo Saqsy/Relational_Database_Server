@@ -55,8 +55,7 @@ public class QueryParser {
             case "INSERT":
                 return parseInsert();
             case "SELECT":
-//                parseSelect();
-                break;
+                return parseSelect();
             case "UPDATE":
 //                parseUpdate();
                 break;
@@ -151,4 +150,45 @@ public class QueryParser {
         }
         return values;
     }
+
+    private Result parseSelect() {
+        tokenizer.nextToken(); // SELECT
+        List<String> attributes = parseWildAttributeList();
+        tokenizer.nextToken(); //FROM
+        Token tableName = tokenizer.nextToken(); // Tablename
+        String condition = null;
+        Token token = tokenizer.nextToken(); // WHERE
+        if (token != null && token.getType() == TokenType.WHERE) {
+            tokenizer.nextToken(); // WHERE
+            condition = parseCondition();
+        }
+        return operationHandler.selectFromTable(tableName.getValue(),attributes,condition);
+    }
+
+    private String parseCondition() {
+        //TODO fix condition
+        StringBuilder condition = new StringBuilder();
+        while(tokenizer.getCurrentToken() != null && tokenizer.getCurrentToken().getType() != TokenType.END) {
+            condition.append(tokenizer.getCurrentToken().getValue()).append(" ");
+            tokenizer.nextToken();
+        }
+        return condition.toString().trim();
+    }
+
+    private List<String> parseWildAttributeList() {
+        List<String> attributes = new ArrayList<>();
+        Token token = tokenizer.getCurrentToken();
+        if (token != null && token.getType() == TokenType.ASTERISK) {
+            attributes.add(token.getValue().strip());
+        } else {
+            attributes.add(token.getValue().strip());
+            while (tokenizer.peekNextToken() != null && tokenizer.peekNextToken().getType() == TokenType.COMMA) {
+                tokenizer.nextToken(); // ,
+                Token value = tokenizer.nextToken();
+                attributes.add(value.getValue().strip());
+            }
+        }
+        return attributes;
+    }
+
 }
