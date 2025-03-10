@@ -5,10 +5,10 @@ import edu.uob.queryprocessor.Token;
 import edu.uob.queryprocessor.TokenType;
 import edu.uob.queryprocessor.Tokenizer;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class QueryParser {
 
@@ -47,29 +47,23 @@ public class QueryParser {
             case "CREATE":
                 return parseCreate();
             case "DROP":
-//                parseDrop();
-                break;
+                return parseDrop();
             case "ALTER":
-//                parseAlter();
-                break;
+                return parseAlter();
             case "INSERT":
                 return parseInsert();
             case "SELECT":
                 return parseSelect();
             case "UPDATE":
-//                parseUpdate();
-                break;
+                return parseUpdate();
             case "DELETE":
-//                parseDelete();
-                break;
+                return parseDelete();
             case "JOIN":
-//                parseJoin();
-                break;
+                return parseJoin();
             default:
                 System.out.println("Invalid command type: " + token.getValue());
                 return Result.FAILURE;
         }
-        return Result.FAILURE;
     }
 
     private Result parseUse() {
@@ -191,4 +185,77 @@ public class QueryParser {
         return attributes;
     }
 
+    private Result parseDrop() {
+        tokenizer.nextToken(); //DROP
+        Token next = tokenizer.getCurrentToken();
+        if (next != null && next.getType() == TokenType.DATABASE) {
+            Token DBname = tokenizer.nextToken();
+            return operationHandler.dropDatabase(DBname.getValue().trim());
+        } else if (next != null && next.getType() == TokenType.TABLE) {
+            Token tableName = tokenizer.nextToken();
+            return operationHandler.dropTable(tableName.getValue().trim());
+        }
+        return Result.FAILURE;
+    }
+
+    private Result parseDelete() {
+        tokenizer.nextToken(); // DELETE
+        tokenizer.nextToken(); // FROM
+        Token tableName = tokenizer.getCurrentToken();
+        tokenizer.nextToken(); // WHERE
+        tokenizer.nextToken(); // WHERE
+        String condition = parseCondition();
+        return operationHandler.deleteFromTable(tableName.getValue(), condition);
+    }
+
+    private Result parseAlter() {
+        tokenizer.nextToken(); // ALTER
+        tokenizer.nextToken(); // TABLE
+        Token tableName = tokenizer.getCurrentToken();
+        Token alterationType = tokenizer.nextToken(); // ADD or DROP
+        Token attributeName = tokenizer.nextToken();
+        return operationHandler.alterTable(tableName.getValue(), alterationType.getValue(), attributeName.getValue());
+    }
+
+    private Result parseUpdate() {
+        tokenizer.nextToken(); // UPDATE
+        Token tableName = tokenizer.getCurrentToken();
+        tokenizer.nextToken(); // SET
+        Map<String, String> nameValuePairs = parseNameValueList();
+        tokenizer.nextToken();
+        tokenizer.nextToken(); // WHERE
+        String condition = parseCondition();
+        return operationHandler.updateTable(tableName.getValue(), nameValuePairs, condition);
+    }
+
+    private Map<String, String> parseNameValueList() {
+        Map<String, String> nameValuePairs = new HashMap<>();
+        String[] pair = parseNameValuePair();
+        nameValuePairs.put(pair[0], pair[1]);
+        while (tokenizer.peekNextToken() != null && tokenizer.peekNextToken().getType() == TokenType.COMMA) {
+            tokenizer.nextToken(); // ,
+            pair = parseNameValuePair();
+            nameValuePairs.put(pair[0], pair[1]);
+        }
+        return nameValuePairs;
+    }
+
+    private String[] parseNameValuePair() {
+        Token attributeName = tokenizer.nextToken();
+        tokenizer.nextToken(); // =
+        Token value = tokenizer.nextToken();
+        return new String[]{attributeName.getValue().strip(), value.getValue().strip()};
+    }
+
+    private Result parseJoin() {
+        tokenizer.nextToken(); // JOIN
+        Token tableName1 = tokenizer.getCurrentToken();
+        tokenizer.nextToken(); // AND
+        Token tableName2 = tokenizer.nextToken();
+        tokenizer.nextToken(); // ON
+        Token attributeName1 = tokenizer.nextToken();
+        tokenizer.nextToken(); // AND
+        Token attributeName2 = tokenizer.nextToken();
+        return operationHandler.joinTables(tableName1.getValue(), tableName2.getValue(), attributeName1.getValue(), attributeName2.getValue());
+    }
 }
