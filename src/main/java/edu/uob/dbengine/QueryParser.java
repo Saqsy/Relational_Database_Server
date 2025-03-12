@@ -94,7 +94,6 @@ public class QueryParser {
             List<String> attributes = new ArrayList<>();
             Token token = tokenizer.nextToken();
             if (token != null && token.getType() == TokenType.LEFT_PAREN) {
-//                tokenizer.nextToken(); // (
                 attributes = parseAttributeList();
                 Token closing = tokenizer.nextToken(); // )
                 if (closing.getType() != TokenType.RIGHT_PAREN) {
