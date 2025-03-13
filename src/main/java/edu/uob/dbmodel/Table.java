@@ -25,7 +25,6 @@ public class Table {
     }
 
     public void deleteHeader(String headerName) throws DatabaseOperationException {
-        //TODO handle exception
         Header header = headers.stream().filter(head -> head.getName().equals(headerName))
                 .findFirst()
                 .orElseThrow(() -> new DatabaseOperationException(" Table operation failed"));
@@ -55,11 +54,11 @@ public class Table {
         rows.add(row);
     }
 
-    public void writeTableToFile(File file) {
+    public void writeTableToFile(File file) throws DatabaseOperationException {
         try (PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(file)))) {
             pw.println(this);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new DatabaseOperationException(e.getMessage());
         }
     }
 
@@ -69,11 +68,10 @@ public class Table {
         return values;
     }
 
-    public void readTableData(File file) {
+    public void readTableData(File file) throws DatabaseOperationException {
 
         if (file == null || !file.exists()) {
-            //TODO handle exception
-           throw new RuntimeException("Table does not exist: " + file.getName());
+           throw new DatabaseOperationException("Table does not exist: " + file.getName());
         }
             // Read entire file content.
             String headerLine;
@@ -90,10 +88,9 @@ public class Table {
                 // Add rows
                 String line;
                 while ((line = br.readLine()) != null) {
-                    //TODO handle malfunc input mismatch in no of rows and headers
                     Row row = new Row();
                     List<String> values = new ArrayList<>(List.of(line.split("\t")));
-                    if (headers.size() != values.size()) {
+                    if (headers.size() > values.size()) {
                         values.add("");
                     }
                     for (int i = 0; i < headers.size(); i++) {
@@ -101,10 +98,8 @@ public class Table {
                     }
                     rows.add(row);
                 }
-            } catch (FileNotFoundException ex) {
-                throw new RuntimeException(ex);
             } catch (IOException ex) {
-                throw new RuntimeException(ex);
+                throw new DatabaseOperationException(" Error occurred while reading table" + ex.getMessage());
             }
     }
 

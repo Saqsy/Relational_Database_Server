@@ -87,10 +87,10 @@ public class DatabaseOperationHandler {
         Table table = new Table();
         table.readTableData(tableFile);
         Row row = new Row();
-        int nextId = !table.getRows().isEmpty() ? table.getRows().size()+1 : 1;
+        int nextId = !table.getRows().isEmpty() ? table.getRows().size() + 1 : 1;
         row.setValue(table.getHeaders().get(0), String.valueOf(nextId));
         for (int i = 1; i < table.getHeaders().size(); i++) {
-            row.setValue(table.getHeaders().get(i), values.get(i-1));
+            row.setValue(table.getHeaders().get(i), values.get(i - 1));
         }
         table.addRow(row);
         table.writeTableToFile(tableFile);
@@ -358,7 +358,7 @@ public class DatabaseOperationHandler {
                     if (!table.containsColumn(key)) {
                         throw new DatabaseOperationException(" Update failed for key: " + key + " and value: " + value);
                     }
-                    table.updateRow(i,key,value);
+                    table.updateRow(i, key, value);
                 }
             }
         }
@@ -406,19 +406,19 @@ public class DatabaseOperationHandler {
                 String TableTwoCellValue = table2.getRows().get(j).getColumnValue(table2.getColumn(attributeName2));
                 if (TableOneCellValue.equals(TableTwoCellValue)) {
                     resultTable.addNewRow();
-                    resultTable.updateRow(row,"id", String.valueOf(newId++));
-                        Row row1 = table1.getRow(i);
-                        if (attributeName1.equals("id")) {
-                            row1.deleteHeaderValue(attributeName1);
-                        } else {
-                            row1.deleteHeaderValue("id");
-                            row1.deleteHeaderValue(attributeName1);
-                        }
-                        for (int l = 0; l < row1.getRowValues().size(); l++) {
-                            resultTable.updateRow(row,
-                                    tableName1 + "." + row1.getRowHeaderValues().get(l),
-                                    String.valueOf(row1.getRowValues().get(l)));
-                        }
+                    resultTable.updateRow(row, "id", String.valueOf(newId++));
+                    Row row1 = table1.getRow(i);
+                    if (attributeName1.equals("id")) {
+                        row1.deleteHeaderValue(attributeName1);
+                    } else {
+                        row1.deleteHeaderValue("id");
+                        row1.deleteHeaderValue(attributeName1);
+                    }
+                    for (int l = 0; l < row1.getRowValues().size(); l++) {
+                        resultTable.updateRow(row,
+                                tableName1 + "." + row1.getRowHeaderValues().get(l),
+                                String.valueOf(row1.getRowValues().get(l)));
+                    }
 
                     Row row2 = table2.getRow(j);
                     if (attributeName2.equals("id")) {
