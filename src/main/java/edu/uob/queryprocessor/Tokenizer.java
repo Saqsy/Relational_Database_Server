@@ -1,12 +1,14 @@
 package edu.uob.queryprocessor;
 
+import edu.uob.exceptions.InvalidSyntaxException;
+
 import java.util.List;
 
 public class Tokenizer {
     private final List<Token> tokens;
     private int position;
 
-    public Tokenizer(String input) {
+    public Tokenizer(String input) throws InvalidSyntaxException {
         Lexer lexer = new Lexer(input);
         this.tokens = lexer.tokenize();
         this.position = 0;
@@ -18,7 +20,7 @@ public class Tokenizer {
      */
     public Token getCurrentToken() {
         if (position >= tokens.size()) {
-            return tokens.get(tokens.size() - 1); // Return the EOF token
+            return tokens.get(tokens.size() - 1);
         }
         return tokens.get(position);
     }
@@ -29,7 +31,7 @@ public class Tokenizer {
      */
     public Token peekNextToken() {
         if (position + 1 >= tokens.size()) {
-            return tokens.get(tokens.size() - 1); // Return the EOF token
+            return tokens.get(tokens.size() - 1);
         }
         return tokens.get(position + 1);
     }
@@ -51,22 +53,21 @@ public class Tokenizer {
      * @return True if the current token matches the expected type
      */
     public boolean match(TokenType type) {
-        if (getCurrentToken().getType() == type) {
-            nextToken();
-            return true;
-        }
-        return false;
+        return getCurrentToken().getType() == type;
     }
 
     /**
      * Expect the current token to be of the specified type
      * @param type Expected token type
-     * @throws RuntimeException if the token doesn't match
+     * @throws InvalidSyntaxException if the token doesn't match
      */
-    public void expect(TokenType type) {
+    public void expect(TokenType type) throws InvalidSyntaxException {
+        expect(type, " Unexpected syntax");
+    }
+
+    public void expect(TokenType type, String error) throws InvalidSyntaxException {
         if (!match(type)) {
-            Token current = getCurrentToken();
-            throw new RuntimeException("Unexpected token");
+            throw new InvalidSyntaxException(error);
         }
     }
 

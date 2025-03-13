@@ -1,16 +1,16 @@
 package edu.uob.queryprocessor;
 
+import edu.uob.exceptions.InvalidSyntaxException;
+
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Class to Lex input string into tokens
+ * @author Saquib Kazi
+ */
 public class Lexer {
-
-    // Reserved keywords list
-    private static final Set<String> RESERVED_KEYWORDS = new HashSet<>(Arrays.asList(
-            "USE", "CREATE", "DATABASE", "TABLE", "DROP", "ALTER", "INSERT", "INTO",
-            "VALUES", "SELECT", "FROM", "WHERE", "SET", "UPDATE", "DELETE", "JOIN", "AND", "ON", "ADD", "LIKE"
-    ));
 
     // Regular expression patterns for token matching
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("^\\s+");
@@ -23,29 +23,36 @@ public class Lexer {
 
 
     private final String input;
-    private final List<Token> Tokens = new ArrayList<>();
     private int position = 0;
-    private int line = 1;
-    private int linePosition = 0;
 
     public Lexer(String input) {
         this.input = input;
     }
 
     /**
-     * Tokenize the entire input string
+     * Tokenize input string
      * @return List of tokens
      */
-    public List<Token> tokenize() {
+    public List<Token> tokenize() throws InvalidSyntaxException {
         List<Token> tokens = new ArrayList<>();
         Token token;
 
-        while ((token = nextToken()).getType() != TokenType.END) {
+        while ((token = nextToken()).getType() != TokenType.LINE_END) {
             if (token.getType() != TokenType.WHITESPACE) {
                 tokens.add(token);
             }
         }
-        tokens.add(token); // Add EOF token
+
+        List<Token> endTokens = tokens.stream()
+                .filter(t -> t.getType() == TokenType.END)
+                .toList();
+
+        if (endTokens.isEmpty()) {
+            throw new InvalidSyntaxException(" Invalid syntax: ';' is expected");
+        } else if (endTokens.size() > 1) {
+            throw new InvalidSyntaxException(" Invalid syntax: more than one ';' found");
+        }
+
         return tokens;
     }
 
@@ -53,9 +60,9 @@ public class Lexer {
      * Get the next token from the input
      * @return Next token
      */
-    public Token nextToken() {
+    public Token nextToken() throws InvalidSyntaxException {
         if (position >= input.length()) {
-            return new Token(TokenType.END, "");
+            return new Token(TokenType.LINE_END, "");
         }
 
         String remainingInput = input.substring(position);
@@ -90,9 +97,8 @@ public class Lexer {
                 type = TokenType.valueOf(keyword);
             } catch (IllegalArgumentException e) {
                 // Should never happen since we're matching against defined keywords
-                throw new RuntimeException("Unrecognized keyword: " + keyword);
+                throw new InvalidSyntaxException("Unrecognized keyword: " + keyword);
             }
-
             return new Token(type, keyword);
         }
 
@@ -123,7 +129,6 @@ public class Lexer {
         // Match string literals
         Matcher stringMatcher = STRING_PATTERN.matcher(remainingInput);
         if (stringMatcher.find()) {
-            //TODO handle it better to remove leading and trailing single qoutes '
             String stringLiteral = stringMatcher.group().substring(1, stringMatcher.group().length() - 1);
             advance(stringLiteral.length()+2);
             return new Token(TokenType.STRING_LITERAL, stringLiteral);
@@ -135,7 +140,6 @@ public class Lexer {
             String symbol = symbolMatcher.group();
             advance(symbol.length());
 
-            // Return the appropriate token based on the symbol
             switch (symbol) {
                 case ";": return new Token(TokenType.END, symbol);
                 case "(": return new Token(TokenType.LEFT_PAREN, symbol);
@@ -149,15 +153,12 @@ public class Lexer {
                 case "!=": return new Token(TokenType.NOT_EQUALS, symbol);
                 case "==": return new Token(TokenType.EQUALS, symbol);
                 case "*": return new Token(TokenType.ASTERISK, symbol);
-                default: throw new RuntimeException("Unrecognized symbol: " + symbol);
+                default: throw new InvalidSyntaxException(" Unrecognized symbol: " + symbol);
             }
         }
 
-        // If we reach here, we have an unrecognized character
         char unrecognizedChar = remainingInput.charAt(0);
-        int startPos = linePosition;
-        advance(1);
-        throw new RuntimeException("Unrecognized character at line " + line + ", position " + startPos + ": " + unrecognizedChar);
+        throw new InvalidSyntaxException(" Unrecognized character: " + unrecognizedChar);
     }
 
     /**
@@ -166,19 +167,8 @@ public class Lexer {
      */
     private void advance(int amount) {
         for (int i = 0; i < amount; i++) {
-            char c = input.charAt(position);
-            if (c == '\n') {
-                line++;
-                linePosition = 0;
-            } else {
-                linePosition++;
-            }
             position++;
         }
     }
-    
-    
-    public List<Token> getTokens() {
-        return Tokens;
-    }
+
 }

@@ -3,7 +3,7 @@ package edu.uob.dbmodel;
 import java.util.Objects;
 
 public class Header {
-    String name;
+    private final String name;
 
     public Header(String name) {
         this.name = name;

@@ -1,5 +1,7 @@
 package edu.uob.dbmodel;
 
+import edu.uob.exceptions.DatabaseOperationException;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -7,20 +9,12 @@ public class Row {
 
     LinkedHashMap<Header,String> value = new LinkedHashMap<>();
 
-    public Map<Header, String> getValue() {
-        return value;
-    }
-
     public String getColumnValue(Header header) {
         return value.get(header);
     }
 
     public void setValue(Header header, String value) {
         this.value.put(header, value);
-    }
-
-    public void setValue(LinkedHashMap<Header, String> value) {
-        this.value = value;
     }
 
     public List<String> getRowValues() {
@@ -31,8 +25,10 @@ public class Row {
         return value.keySet().stream().map(Header::getName).collect(Collectors.toList());
     }
 
-    public void deleteHeaderValue(String columnName) {
-        Header header = value.keySet().stream().filter(head -> head.getName().equals(columnName)).findFirst().get();
+    public void deleteHeaderValue(String columnName) throws DatabaseOperationException {
+        Header header = value.keySet().stream()
+                .filter(head -> head.getName().equals(columnName))
+                .findFirst().orElseThrow(() -> new DatabaseOperationException(" Table operation failed"));
         value.remove(header);
     }
 
@@ -44,12 +40,4 @@ public class Row {
         this.value.put(header, value);
     }
 
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<Header, String> entry : value.entrySet()) {
-            sb.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
-        }
-        return sb.toString();
-    }
 }

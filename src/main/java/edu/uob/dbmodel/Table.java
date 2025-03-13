@@ -1,5 +1,7 @@
 package edu.uob.dbmodel;
 
+import edu.uob.exceptions.DatabaseOperationException;
+
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -7,17 +9,8 @@ import java.util.List;
 
 public class Table {
 
-    String name;
     List<Header> headers = new ArrayList<>();
     List<Row> rows = new ArrayList<>();
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
 
     public List<Header> getHeaders() {
         return headers;
@@ -28,15 +21,14 @@ public class Table {
     }
 
     public void addHeader(Header header) {
-        if (headers == null) {
-            headers = new ArrayList<>();
-        }
         headers.add(header);
     }
 
-    public void deleteHeader(String headerName) {
+    public void deleteHeader(String headerName) throws DatabaseOperationException {
         //TODO handle exception
-        Header header = headers.stream().filter(head -> head.getName().equals(headerName)).findFirst().orElse(null);
+        Header header = headers.stream().filter(head -> head.getName().equals(headerName))
+                .findFirst()
+                .orElseThrow(() -> new DatabaseOperationException(" Table operation failed"));
         if (header != null) {
             headers.remove(header);
         }
@@ -116,12 +108,11 @@ public class Table {
             }
     }
 
-    public void deleteColumn(String columnName) {
-        // Delete from headers
+    public void deleteColumn(String columnName) throws DatabaseOperationException {
         deleteHeader(columnName);
-        rows.stream().forEach(row -> {
+        for(Row row : rows) {
             row.deleteHeaderValue(columnName);
-        });
+        }
     }
 
     public void addColumn(String columnName) {

@@ -5,8 +5,7 @@ import edu.uob.outputprocessor.Result;
 
 public class DatabaseHandler {
 
-    private String query;
-    private DatabaseOperationHandler operationHandler;
+    private final DatabaseOperationHandler operationHandler;
 
     public DatabaseHandler() {
         operationHandler = new DatabaseOperationHandler();

@@ -3,8 +3,11 @@ package edu.uob.dbengine;
 import edu.uob.dbmodel.Header;
 import edu.uob.dbmodel.Row;
 import edu.uob.dbmodel.Table;
+import edu.uob.exceptions.DatabaseOperationException;
 import edu.uob.outputprocessor.Logger;
 import edu.uob.outputprocessor.Result;
+import edu.uob.utils.Constants;
+import edu.uob.utils.Session;
 
 import java.io.*;
 import java.nio.file.Paths;
@@ -14,59 +17,49 @@ import java.util.regex.Pattern;
 
 public class DatabaseOperationHandler {
 
-    private static final String DATABASE_DIR = Paths.get("databases").toAbsolutePath().toString();
+    private static final String DATABASE_DIR = Paths.get(Constants.FOLDER_NAME).toAbsolutePath().toString();
 
-    private static class CurrentDatabase {
-        static String name = null;
-        static String path = null;
-    }
 
-    private boolean isDatabaseInactive() {
-        if (CurrentDatabase.name == null) {
-            System.out.println("No database selected");
-            return true;
+    private void checkActiveDatabase() throws DatabaseOperationException {
+        if (Session.DBname == null) {
+            throw new DatabaseOperationException(" No database selected");
         }
-        return false;
     }
 
-    private File getTableFile(String tableName) {
-        //TODO handle exception
-        File tableFile = new File(CurrentDatabase.path, tableName + ".tab");
+    private File getTableFile(String tableName) throws DatabaseOperationException {
+        File tableFile = new File(Session.DBpath, tableName + ".tab");
         if (tableFile.exists()) {
             return tableFile;
         }
-        return null;
+        throw new DatabaseOperationException(" Database file not found");
     }
 
-    public Result useDatabase(String dbName) {
+    public Result useDatabase(String dbName) throws DatabaseOperationException {
         File dbDir = new File(DATABASE_DIR, dbName);
         if (dbDir.exists() && dbDir.isDirectory()) {
-            CurrentDatabase.name = dbName;
-            CurrentDatabase.path = dbDir.getAbsolutePath();
+            Session.DBname = dbName;
+            Session.DBpath = dbDir.getAbsolutePath();
             return Result.SUCCESS;
         } else {
-            return Result.FAILURE;
+            throw new DatabaseOperationException(" Database doesn't exist");
         }
     }
 
-    public Result createDatabase(String dbName) {
+    public Result createDatabase(String dbName) throws DatabaseOperationException {
         File dbDir = new File(DATABASE_DIR, dbName);
         if (!dbDir.exists()) {
             dbDir.mkdir();
-            CurrentDatabase.name = dbName;
-            CurrentDatabase.path = dbDir.getAbsolutePath();
+            Session.DBname = dbName;
+            Session.DBpath = dbDir.getAbsolutePath();
             return Result.SUCCESS;
         } else {
-            return Result.FAILURE;
+            throw new DatabaseOperationException(" Unable to create database");
         }
     }
 
-    public Result createTable(String tableName, List<String> attributes) {
-        if (CurrentDatabase.name == null) {
-            System.out.println("No database selected");
-            return Result.FAILURE;
-        }
-        File tableFile = new File(CurrentDatabase.path, tableName + ".tab");
+    public Result createTable(String tableName, List<String> attributes) throws DatabaseOperationException {
+        checkActiveDatabase();
+        File tableFile = new File(Session.DBpath, tableName + ".tab");
         try {
             if (tableFile.createNewFile()) {
                 if (attributes != null && !attributes.isEmpty()) {
@@ -78,28 +71,21 @@ public class DatabaseOperationHandler {
                     attributes.forEach(attr -> newTable.addHeader(new Header(attr)));
                     newTable.writeTableToFile(tableFile);
                 }
-                System.out.println("Table created: " + tableName);
                 return Result.SUCCESS;
             } else {
-                System.out.println("Table already exists: " + tableName);
+                Logger.logResult("Table already exists: " + tableName);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new DatabaseOperationException(" Unable to create table");
         }
         return Result.FAILURE;
     }
 
-    //TODO check insert
-    public Result insertIntoTable(String tableName, List<String> values) {
-        if (CurrentDatabase.name == null) {
-            System.out.println("No database selected");
-            return Result.FAILURE;
-        }
-        File tableFile = new File(CurrentDatabase.path, tableName + ".tab");
-
+    public Result insertIntoTable(String tableName, List<String> values) throws DatabaseOperationException {
+        checkActiveDatabase();
+        File tableFile = getTableFile(tableName);
         Table table = new Table();
         table.readTableData(tableFile);
-
         Row row = new Row();
         int nextId = !table.getRows().isEmpty() ? table.getRows().size()+1 : 1;
         row.setValue(table.getHeaders().get(0), String.valueOf(nextId));
@@ -108,17 +94,11 @@ public class DatabaseOperationHandler {
         }
         table.addRow(row);
         table.writeTableToFile(tableFile);
-
         return Result.SUCCESS;
     }
 
-    //TODO select with multiple conditions with AND pending
-    public Result selectFromTable(String tableName, List<String> attributes, String condition) {
-        //TODO write current db check and file read logic into different method
-        if (isDatabaseInactive()) {
-            return Result.FAILURE;
-        }
-
+    public Result selectFromTable(String tableName, List<String> attributes, String condition) throws DatabaseOperationException {
+        checkActiveDatabase();
         File tableFile = getTableFile(tableName);
         Table tableResult = new Table();
         tableResult.readTableData(tableFile);
@@ -127,13 +107,13 @@ public class DatabaseOperationHandler {
 
         // Determine which columns to output
         if (!attributes.get(0).equals("*")) {
-            List<String> columns = new ArrayList<>();
-            columns.addAll(tableResult.getHeaderValues());
+            List<String> columns = new ArrayList<>(tableResult.getHeaderValues());
             for (String attr : attributes) {
                 columns.remove(attr);
             }
-            columns.forEach(tableResult::deleteHeader);
-            columns.forEach(tableResult::deleteColumn);
+            for (String col : columns) {
+                tableResult.deleteColumn(col);
+            }
         }
 
         // Process each row.
@@ -151,7 +131,6 @@ public class DatabaseOperationHandler {
         tableResult.setRows(newRows);
         Logger.logResult("\n");
         Logger.logResult(tableResult.toString());
-
         return Result.SUCCESS;
     }
 
@@ -159,12 +138,11 @@ public class DatabaseOperationHandler {
         if (condition == null || condition.trim().isEmpty()) {
             return true;
         }
-        // If the condition does not contain any parentheses, treat it as a single condition.
+
         if (!condition.contains("(") && !condition.contains(")")) {
             return evaluateSingleCondition(condition, header, row);
         }
 
-        // Otherwise, extract conditions enclosed in parentheses.
         Pattern p = Pattern.compile("\\(([^)]+)\\)");
         Matcher m = p.matcher(condition);
         List<String> conditions = new ArrayList<>();
@@ -172,11 +150,9 @@ public class DatabaseOperationHandler {
             conditions.add(m.group(1).trim());
         }
 
-        // Determine the boolean operator: if "OR" exists, use OR; otherwise, use AND.
         String upperCond = condition.toUpperCase();
         boolean useOr = upperCond.contains(" OR ");
 
-        // If no conditions were extracted (e.g. malformed input), evaluate the entire condition.
         if (conditions.isEmpty()) {
             return evaluateSingleCondition(condition, header, row);
         }
@@ -199,16 +175,14 @@ public class DatabaseOperationHandler {
     }
 
     private boolean evaluateSingleCondition(String cond, String[] header, String[] row) {
-        // Expected format: [AttributeName] <Comparator> [Value]
+
         Pattern conditionPattern = Pattern.compile("([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|>|<|>=|<=|!=|LIKE)\\s*(.+)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = conditionPattern.matcher(cond);
         if (matcher.matches()) {
             String condAttr = matcher.group(1);
             String condOperator = matcher.group(2);
             String condValue = matcher.group(3).trim();
-            // Remove surrounding quotes if present.
             condValue = condValue.replaceAll("^'|'$", "");
-            // Find the attribute index.
             int colIndex = -1;
             for (int i = 0; i < header.length; i++) {
                 if (header[i].equalsIgnoreCase(condAttr)) {
@@ -217,13 +191,13 @@ public class DatabaseOperationHandler {
                 }
             }
             if (colIndex == -1) {
-                System.out.println("Condition attribute not found: " + condAttr);
+                Logger.logResult(" Condition attribute not found: " + condAttr);
                 return false;
             }
             String cellValue = row.length > colIndex ? row[colIndex] : "";
             return evaluateCondition(cellValue, condOperator, condValue);
         } else {
-            System.out.println("Invalid condition format: " + cond);
+            Logger.logResult(" Invalid condition format: " + cond);
             return false;
         }
     }
@@ -232,34 +206,31 @@ public class DatabaseOperationHandler {
         try {
             double dCell = Double.parseDouble(cellValue);
             double dCond = Double.parseDouble(condValue);
-            switch (operator) {
-                case "==": return dCell == dCond;
-                case "!=": return dCell != dCond;
-                case ">":  return dCell > dCond;
-                case "<":  return dCell < dCond;
-                case ">=": return dCell >= dCond;
-                case "<=": return dCell <= dCond;
-                default: return false;
-            }
+            return switch (operator) {
+                case "==" -> dCell == dCond;
+                case "!=" -> dCell != dCond;
+                case ">" -> dCell > dCond;
+                case "<" -> dCell < dCond;
+                case ">=" -> dCell >= dCond;
+                case "<=" -> dCell <= dCond;
+                default -> false;
+            };
         } catch (NumberFormatException e) {
-            // Non-numeric comparison.
             if (operator.equalsIgnoreCase("LIKE")) {
-                // Simple substring match for LIKE.
                 return cellValue.contains(condValue);
             } else if (operator.equals("==")) {
                 return cellValue.equals(condValue);
             } else if (operator.equals("!=")) {
                 return !cellValue.equals(condValue);
             } else {
-                // For other operators, lexicographical comparison.
                 int cmp = cellValue.compareTo(condValue);
-                switch (operator) {
-                    case ">": return cmp > 0;
-                    case "<": return cmp < 0;
-                    case ">=": return cmp >= 0;
-                    case "<=": return cmp <= 0;
-                    default: return false;
-                }
+                return switch (operator) {
+                    case ">" -> cmp > 0;
+                    case "<" -> cmp < 0;
+                    case ">=" -> cmp >= 0;
+                    case "<=" -> cmp <= 0;
+                    default -> false;
+                };
             }
         }
     }
@@ -270,18 +241,18 @@ public class DatabaseOperationHandler {
             deleteDirectory(dbDir);
             return Result.SUCCESS;
         } else {
+            Logger.logResult(" Database does not exist: " + dbName);
             return Result.FAILURE;
         }
     }
 
-    public Result dropTable(String tableName) {
-        if (isDatabaseInactive()) {
-            return Result.FAILURE;
-        }
+    public Result dropTable(String tableName) throws DatabaseOperationException {
+        checkActiveDatabase();
         File tableFile = getTableFile(tableName);
         if (tableFile.exists() && tableFile.delete()) {
             return Result.SUCCESS;
         }
+        Logger.logResult(" Table does not exist: " + tableName);
         return Result.FAILURE;
     }
 
@@ -299,18 +270,30 @@ public class DatabaseOperationHandler {
         directory.delete();
     }
 
-    public Result deleteFromTable(String tableName, String condition) {
-
-        if (isDatabaseInactive()) {
-            return Result.FAILURE;
-        }
+    public Result deleteFromTable(String tableName, String condition) throws DatabaseOperationException {
+        checkActiveDatabase();
         File tableFile = getTableFile(tableName);
 
         Table table = new Table();
         table.readTableData(tableFile);
 
-        // TODO extract below into helper func
         // Parse condition, if provided.
+        Condition result = getCondition(condition, table);
+
+        for (int i = 0; i < table.getRows().size(); i++) {
+            String cellValue = table.getRows().get(i).getColumnValue(table.getColumn(result.attribute()));
+            if (evaluateCondition(cellValue, result.operator(), result.value())) {
+                table.deleteRow(i);
+                i--;
+            }
+        }
+
+        table.writeTableToFile(tableFile);
+
+        return Result.SUCCESS;
+    }
+
+    private static Condition getCondition(String condition, Table table) throws DatabaseOperationException {
         String condOperator = null;
         String condValue = null;
         String condAttr = null;
@@ -327,33 +310,21 @@ public class DatabaseOperationHandler {
                 condValue = condValue.replaceAll("^'|'$", "");
                 // Find condition attribute index.
                 if (!table.containsColumn(condAttr)) {
-                    System.out.println("Condition attribute not found: " + condAttr);
-                    return Result.FAILURE;
+                    throw new DatabaseOperationException("Condition attribute not found: " + condAttr);
                 }
             } else {
-                System.out.println("Unsupported condition format: " + condition);
-                return Result.FAILURE;
+                throw new DatabaseOperationException("Unsupported condition format: " + condition);
+            }
+
+            if (condAttr == null || condOperator == null || condValue == null) {
+                throw new DatabaseOperationException("Unsupported condition format: " + condition);
             }
         }
-
-        for (int i = 0; i < table.getRows().size(); i++) {
-            String cellValue = table.getRows().get(i).getColumnValue(table.getColumn(condAttr));
-            if (evaluateCondition(cellValue, condOperator, condValue)) {
-                table.deleteRow(i);
-                i--;
-            }
-        }
-
-        table.writeTableToFile(tableFile);
-
-        return Result.SUCCESS;
+        return new Condition(condOperator, condValue, condAttr);
     }
 
-    public Result alterTable(String tableName, String alterationType, String attributeName) {
-        if (isDatabaseInactive()) {
-            System.out.println("No database selected");
-            return Result.FAILURE;
-        }
+    public Result alterTable(String tableName, String alterationType, String attributeName) throws DatabaseOperationException {
+        checkActiveDatabase();
         File tableFile = getTableFile(tableName);
 
         Table table = new Table();
@@ -368,51 +339,24 @@ public class DatabaseOperationHandler {
         return Result.SUCCESS;
     }
 
-    public Result updateTable(String tableName, Map<String, String> nameValuePairs, String condition) {
-        if (isDatabaseInactive()) {
-            System.out.println("No database selected");
-            return Result.FAILURE;
-        }
+    public Result updateTable(String tableName, Map<String, String> nameValuePairs, String condition) throws DatabaseOperationException {
+        checkActiveDatabase();
         File tableFile = getTableFile(tableName);
 
         Table table = new Table();
         table.readTableData(tableFile);
 
         // Parse condition, if provided.
-        String condOperator = null;
-        String condValue = null;
-        String condAttr = null;
-        if (condition != null && !condition.isEmpty()) {
-            // Expecting format: [AttributeName] <Comparator> [Value]
-            Pattern conditionPattern = Pattern.compile(
-                    "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|>|<|>=|<=|!=|LIKE)\\s*(.+)", Pattern.CASE_INSENSITIVE);
-            Matcher matcher = conditionPattern.matcher(condition);
-            if (matcher.matches()) {
-                condAttr = matcher.group(1);
-                condOperator = matcher.group(2);
-                condValue = matcher.group(3).trim();
-                // Remove surrounding quotes if present.
-                condValue = condValue.replaceAll("^'|'$", "");
-                // Find condition attribute index.
-                if (!table.containsColumn(condAttr)) {
-                    System.out.println("Condition attribute not found: " + condAttr);
-                    return Result.FAILURE;
-                }
-            } else {
-                System.out.println("Unsupported condition format: " + condition);
-                return Result.FAILURE;
-            }
-        }
+        Condition result = getCondition(condition, table);
 
         for (int i = 0; i < table.getRows().size(); i++) {
-            String cellValue = table.getRows().get(i).getColumnValue(table.getColumn(condAttr));
-            if (evaluateCondition(cellValue, condOperator, condValue)) {
+            String cellValue = table.getRows().get(i).getColumnValue(table.getColumn(result.attribute()));
+            if (evaluateCondition(cellValue, result.operator(), result.value())) {
                 for (Map.Entry<String, String> entry : nameValuePairs.entrySet()) {
                     String key = entry.getKey();
                     String value = entry.getValue();
-                    //TODO proper error handling
                     if (!table.containsColumn(key)) {
-                        return Result.FAILURE;
+                        throw new DatabaseOperationException(" Update failed for key: " + key + " and value: " + value);
                     }
                     table.updateRow(i,key,value);
                 }
@@ -424,11 +368,8 @@ public class DatabaseOperationHandler {
         return Result.SUCCESS;
     }
 
-    public Result joinTables(String tableName1, String tableName2, String attributeName1, String attributeName2) {
-        if (isDatabaseInactive()) {
-            System.out.println("No database selected");
-            return Result.FAILURE;
-        }
+    public Result joinTables(String tableName1, String tableName2, String attributeName1, String attributeName2) throws DatabaseOperationException {
+        checkActiveDatabase();
 
         File tableFile1 = getTableFile(tableName1);
         File tableFile2 = getTableFile(tableName2);

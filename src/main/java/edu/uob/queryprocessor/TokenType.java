@@ -15,5 +15,5 @@ public enum TokenType {
         GREATER_THAN, LESS_THAN, GREATER_EQUALS, LESS_EQUALS, NOT_EQUALS,
 
         // Special
-        ASTERISK, WHITESPACE, END
+        ASTERISK, WHITESPACE, END, LINE_END
 }
