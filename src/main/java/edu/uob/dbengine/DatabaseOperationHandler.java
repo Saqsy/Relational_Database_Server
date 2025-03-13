@@ -19,7 +19,6 @@ public class DatabaseOperationHandler {
 
     private static final String DATABASE_DIR = Paths.get(Constants.FOLDER_NAME).toAbsolutePath().toString();
 
-
     private void checkActiveDatabase() throws DatabaseOperationException {
         if (Session.DBname == null) {
             throw new DatabaseOperationException(" No database selected");
@@ -31,7 +30,7 @@ public class DatabaseOperationHandler {
         if (tableFile.exists()) {
             return tableFile;
         }
-        throw new DatabaseOperationException(" Database file not found");
+        throw new DatabaseOperationException(" Table not found");
     }
 
     public Result useDatabase(String dbName) throws DatabaseOperationException {
@@ -70,8 +69,11 @@ public class DatabaseOperationHandler {
                     Table newTable = new Table();
                     attributes.forEach(attr -> newTable.addHeader(new Header(attr)));
                     newTable.writeTableToFile(tableFile);
+                    return Result.SUCCESS;
+                } else {
+                    tableFile.delete();
+                    Logger.logResult(" Column Names not passed");
                 }
-                return Result.SUCCESS;
             } else {
                 Logger.logResult("Table already exists: " + tableName);
             }
@@ -87,7 +89,12 @@ public class DatabaseOperationHandler {
         Table table = new Table();
         table.readTableData(tableFile);
         Row row = new Row();
-        int nextId = !table.getRows().isEmpty() ? table.getRows().size() + 1 : 1;
+        int noOfRows = !table.getRows().isEmpty() ? table.getRows().size() : 0;
+        int nextId = 1;
+        if (noOfRows > 0) {
+            int lastId = Integer.parseInt(table.getColumnValueForRow(table.getRows().size()-1,"id"));
+            nextId = lastId + 1;
+        }
         row.setValue(table.getHeaders().get(0), String.valueOf(nextId));
         for (int i = 1; i < table.getHeaders().size(); i++) {
             row.setValue(table.getHeaders().get(i), values.get(i - 1));
@@ -109,7 +116,11 @@ public class DatabaseOperationHandler {
         if (!attributes.get(0).equals("*")) {
             List<String> columns = new ArrayList<>(tableResult.getHeaderValues());
             for (String attr : attributes) {
-                columns.remove(attr);
+                if (columns.contains(attr)) {
+                    columns.remove(attr);
+                } else {
+                    throw new DatabaseOperationException(" Column not found");
+                }
             }
             for (String col : columns) {
                 tableResult.deleteColumn(col);
@@ -134,7 +145,7 @@ public class DatabaseOperationHandler {
         return Result.SUCCESS;
     }
 
-    private boolean evaluateMultipleConditions(String condition, String[] header, String[] row) {
+    private boolean evaluateMultipleConditions(String condition, String[] header, String[] row) throws DatabaseOperationException {
         if (condition == null || condition.trim().isEmpty()) {
             return true;
         }
@@ -174,7 +185,7 @@ public class DatabaseOperationHandler {
         }
     }
 
-    private boolean evaluateSingleCondition(String cond, String[] header, String[] row) {
+    private boolean evaluateSingleCondition(String cond, String[] header, String[] row) throws DatabaseOperationException {
 
         Pattern conditionPattern = Pattern.compile("([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|>|<|>=|<=|!=|LIKE)\\s*(.+)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = conditionPattern.matcher(cond);
@@ -191,14 +202,12 @@ public class DatabaseOperationHandler {
                 }
             }
             if (colIndex == -1) {
-                Logger.logResult(" Condition attribute not found: " + condAttr);
-                return false;
+                throw new DatabaseOperationException(" Condition attribute not found: " + condAttr);
             }
             String cellValue = row.length > colIndex ? row[colIndex] : "";
             return evaluateCondition(cellValue, condOperator, condValue);
         } else {
-            Logger.logResult(" Invalid condition format: " + cond);
-            return false;
+            throw new DatabaseOperationException(" Invalid condition format: " + cond);
         }
     }
 
@@ -310,14 +319,14 @@ public class DatabaseOperationHandler {
                 condValue = condValue.replaceAll("^'|'$", "");
                 // Find condition attribute index.
                 if (!table.containsColumn(condAttr)) {
-                    throw new DatabaseOperationException("Condition attribute not found: " + condAttr);
+                    throw new DatabaseOperationException(" Condition attribute not found: " + condAttr);
                 }
             } else {
-                throw new DatabaseOperationException("Unsupported condition format: " + condition);
+                throw new DatabaseOperationException(" Unsupported condition format: " + condition);
             }
 
             if (condAttr == null || condOperator == null || condValue == null) {
-                throw new DatabaseOperationException("Unsupported condition format: " + condition);
+                throw new DatabaseOperationException(" Unsupported condition format: " + condition);
             }
         }
         return new Condition(condOperator, condValue, condAttr);
@@ -348,6 +357,7 @@ public class DatabaseOperationHandler {
 
         // Parse condition, if provided.
         Condition result = getCondition(condition, table);
+        boolean updated = false;
 
         for (int i = 0; i < table.getRows().size(); i++) {
             String cellValue = table.getRows().get(i).getColumnValue(table.getColumn(result.attribute()));
@@ -356,11 +366,16 @@ public class DatabaseOperationHandler {
                     String key = entry.getKey();
                     String value = entry.getValue();
                     if (!table.containsColumn(key)) {
-                        throw new DatabaseOperationException(" Update failed for key: " + key + " and value: " + value);
+                        throw new DatabaseOperationException(" Update failed column doesn't exist: " + key);
                     }
+                    updated = true;
                     table.updateRow(i, key, value);
                 }
             }
+        }
+
+        if (!updated) {
+            throw new DatabaseOperationException(" Update failed value not found: " + condition);
         }
 
         table.writeTableToFile(tableFile);
@@ -383,59 +398,64 @@ public class DatabaseOperationHandler {
         // Add id column
         resultTable.addColumn("id");
 
-        // Add table 1 headers
-        for (int i = 1; i < table1.getHeaders().size(); i++) {
-            if (!table1.getHeader(i).getName().equals(attributeName1)) {
-                resultTable.addColumn(tableName1 + "." + table1.getHeader(i).getName());
-            }
-        }
-
-        // Add table 2 headers
-        for (int i = 1; i < table2.getHeaders().size(); i++) {
-            if (!table2.getHeader(i).getName().equals(attributeName2)) {
-                resultTable.addColumn(tableName2 + "." + table2.getHeader(i).getName());
-            }
-        }
-
-        // Perform Join
-        int newId = 1;
-        int row = 0;
-        for (int i = 0; i < table1.getRows().size(); i++) {
-            String TableOneCellValue = table1.getRows().get(i).getColumnValue(table1.getColumn(attributeName1));
-            for (int j = 0; j < table2.getRows().size(); j++) {
-                String TableTwoCellValue = table2.getRows().get(j).getColumnValue(table2.getColumn(attributeName2));
-                if (TableOneCellValue.equals(TableTwoCellValue)) {
-                    resultTable.addNewRow();
-                    resultTable.updateRow(row, "id", String.valueOf(newId++));
-                    Row row1 = table1.getRow(i);
-                    if (attributeName1.equals("id")) {
-                        row1.deleteHeaderValue(attributeName1);
-                    } else {
-                        row1.deleteHeaderValue("id");
-                        row1.deleteHeaderValue(attributeName1);
-                    }
-                    for (int l = 0; l < row1.getRowValues().size(); l++) {
-                        resultTable.updateRow(row,
-                                tableName1 + "." + row1.getRowHeaderValues().get(l),
-                                String.valueOf(row1.getRowValues().get(l)));
-                    }
-
-                    Row row2 = table2.getRow(j);
-                    if (attributeName2.equals("id")) {
-                        row2.deleteHeaderValue(attributeName2);
-                    } else {
-                        row2.deleteHeaderValue("id");
-                        row2.deleteHeaderValue(attributeName2);
-                    }
-                    for (int l = 0; l < row2.getRowValues().size(); l++) {
-                        resultTable.updateRow(row,
-                                tableName2 + "." + row2.getRowHeaderValues().get(l),
-                                String.valueOf(row2.getRowValues().get(l)));
-                    }
-                    row++;
+        try {
+            // Add table 1 headers
+            for (int i = 1; i < table1.getHeaders().size(); i++) {
+                if (!table1.getHeader(i).getName().equals(attributeName1)) {
+                    resultTable.addColumn(tableName1 + "." + table1.getHeader(i).getName());
                 }
             }
+
+            // Add table 2 headers
+            for (int i = 1; i < table2.getHeaders().size(); i++) {
+                if (!table2.getHeader(i).getName().equals(attributeName2)) {
+                    resultTable.addColumn(tableName2 + "." + table2.getHeader(i).getName());
+                }
+            }
+
+            // Perform Join
+            int newId = 1;
+            int row = 0;
+            for (int i = 0; i < table1.getRows().size(); i++) {
+                String TableOneCellValue = table1.getRows().get(i).getColumnValue(table1.getColumn(attributeName1));
+                for (int j = 0; j < table2.getRows().size(); j++) {
+                    String TableTwoCellValue = table2.getRows().get(j).getColumnValue(table2.getColumn(attributeName2));
+                    if (TableOneCellValue.equals(TableTwoCellValue)) {
+                        resultTable.addNewRow();
+                        resultTable.updateRow(row, "id", String.valueOf(newId++));
+                        Row row1 = table1.getRow(i);
+                        if (attributeName1.equals("id")) {
+                            row1.deleteHeaderValue(attributeName1);
+                        } else {
+                            row1.deleteHeaderValue("id");
+                            row1.deleteHeaderValue(attributeName1);
+                        }
+                        for (int l = 0; l < row1.getRowValues().size(); l++) {
+                            resultTable.updateRow(row,
+                                    tableName1 + "." + row1.getRowHeaderValues().get(l),
+                                    String.valueOf(row1.getRowValues().get(l)));
+                        }
+
+                        Row row2 = table2.getRow(j);
+                        if (attributeName2.equals("id")) {
+                            row2.deleteHeaderValue(attributeName2);
+                        } else {
+                            row2.deleteHeaderValue("id");
+                            row2.deleteHeaderValue(attributeName2);
+                        }
+                        for (int l = 0; l < row2.getRowValues().size(); l++) {
+                            resultTable.updateRow(row,
+                                    tableName2 + "." + row2.getRowHeaderValues().get(l),
+                                    String.valueOf(row2.getRowValues().get(l)));
+                        }
+                        row++;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new DatabaseOperationException(" Join failed " + e.getMessage());
         }
+
         Logger.logResult("\n");
         Logger.logResult(resultTable.toString());
         return Result.SUCCESS;

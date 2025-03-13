@@ -1,6 +1,7 @@
 package edu.uob.dbmodel;
 
 import edu.uob.exceptions.DatabaseOperationException;
+import edu.uob.storageprocessor.StorageEngine;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -14,10 +15,6 @@ public class Table {
 
     public List<Header> getHeaders() {
         return headers;
-    }
-
-    public void setHeaders(List<Header> headers) {
-        this.headers = headers;
     }
 
     public void addHeader(Header header) {
@@ -46,20 +43,15 @@ public class Table {
         this.rows = rows;
     }
 
-    public void addValueToRow(int index, Header header, String value) {
-        rows.get(index).setValue(header, value);
-    }
-
     public void addRow(Row row) {
         rows.add(row);
     }
 
     public void writeTableToFile(File file) throws DatabaseOperationException {
-        try (PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(file)))) {
-            pw.println(this);
-        } catch (IOException e) {
-            throw new DatabaseOperationException(e.getMessage());
-        }
+        StorageEngine storageEngine = new StorageEngine();
+        storageEngine.getFileWriter(file);
+        storageEngine.writeData(this.toString());
+        storageEngine.flushReader();
     }
 
     public List<String> getHeaderValues() {
@@ -69,43 +61,38 @@ public class Table {
     }
 
     public void readTableData(File file) throws DatabaseOperationException {
-
-        if (file == null || !file.exists()) {
-           throw new DatabaseOperationException("Table does not exist: " + file.getName());
+        StorageEngine storageEngine = new StorageEngine();
+        storageEngine.getFileReader(file);
+        // Read entire file content.
+        String headerLine;
+        headerLine = storageEngine.readLine();
+        if (headerLine == null) {
+            // If file is empty, create a header with auto-generated "id" column.
+            headers.add(new Header("id"));
         }
-            // Read entire file content.
-            String headerLine;
-            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-                headerLine = br.readLine();
-                if (headerLine == null) {
-                    // If file is empty, create a header with auto-generated "id" column.
-                    headers.add(new Header("id"));
-                }
-                // Add headers to list
-                Arrays.stream(headerLine.split("\t")).forEach(header -> {
-                    headers.add(new Header(header));
-                });
-                // Add rows
-                String line;
-                while ((line = br.readLine()) != null) {
-                    Row row = new Row();
-                    List<String> values = new ArrayList<>(List.of(line.split("\t")));
-                    if (headers.size() > values.size()) {
-                        values.add("");
-                    }
-                    for (int i = 0; i < headers.size(); i++) {
-                        row.setValue(headers.get(i), values.get(i));
-                    }
-                    rows.add(row);
-                }
-            } catch (IOException ex) {
-                throw new DatabaseOperationException(" Error occurred while reading table" + ex.getMessage());
+        // Add headers to list
+        Arrays.stream(headerLine.split("\t")).forEach(header -> {
+            headers.add(new Header(header));
+        });
+        // Add rows
+        String line;
+        while ((line = storageEngine.readLine()) != null) {
+            Row row = new Row();
+            List<String> values = new ArrayList<>(List.of(line.split("\t")));
+            if (headers.size() > values.size()) {
+                values.add("");
             }
+            for (int i = 0; i < headers.size(); i++) {
+                row.setValue(headers.get(i), values.get(i));
+            }
+            rows.add(row);
+        }
+        storageEngine.flushWriter();
     }
 
     public void deleteColumn(String columnName) throws DatabaseOperationException {
         deleteHeader(columnName);
-        for(Row row : rows) {
+        for (Row row : rows) {
             row.deleteHeaderValue(columnName);
         }
     }
@@ -114,7 +101,7 @@ public class Table {
         Header header = new Header(columnName);
         addHeader(header);
         rows.stream().forEach(row -> {
-            row.addRowValue(header,"");
+            row.addRowValue(header, "");
         });
     }
 
@@ -133,7 +120,7 @@ public class Table {
     public void updateRow(int i, String column, String value) {
         Header header = getColumn(column);
         if (header != null) {
-            rows.get(i).updateRow(header,value);
+            rows.get(i).updateRow(header, value);
         }
     }
 
@@ -143,8 +130,12 @@ public class Table {
 
     public void addNewRow() {
         Row row = new Row();
-        headers.forEach(header -> row.addRowValue(header,""));
+        headers.forEach(header -> row.addRowValue(header, ""));
         rows.add(row);
+    }
+
+    public String getColumnValueForRow(int i, String column) {
+        return rows.get(i).getColumnValue(getColumn(column));
     }
 
     @Override

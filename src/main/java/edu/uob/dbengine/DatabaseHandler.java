@@ -12,7 +12,7 @@ public class DatabaseHandler {
     }
 
     public void parseQuery(String query) {
-        QueryParser queryParser = new QueryParser(operationHandler,query);
+        QueryParser queryParser = new QueryParser(operationHandler, query);
         if (queryParser.parse() == Result.SUCCESS) {
             Logger.insertLog(0, Result.SUCCESS.value);
         } else {

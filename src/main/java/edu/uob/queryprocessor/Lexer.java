@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 
 /**
  * Class to Lex input string into tokens
+ *
  * @author Saquib Kazi
  */
 public class Lexer {
@@ -29,10 +30,7 @@ public class Lexer {
         this.input = input;
     }
 
-    /**
-     * Tokenize input string
-     * @return List of tokens
-     */
+
     public List<Token> tokenize() throws InvalidSyntaxException {
         List<Token> tokens = new ArrayList<>();
         Token token;
@@ -56,10 +54,7 @@ public class Lexer {
         return tokens;
     }
 
-    /**
-     * Get the next token from the input
-     * @return Next token
-     */
+
     public Token nextToken() throws InvalidSyntaxException {
         if (position >= input.length()) {
             return new Token(TokenType.LINE_END, "");
@@ -130,7 +125,7 @@ public class Lexer {
         Matcher stringMatcher = STRING_PATTERN.matcher(remainingInput);
         if (stringMatcher.find()) {
             String stringLiteral = stringMatcher.group().substring(1, stringMatcher.group().length() - 1);
-            advance(stringLiteral.length()+2);
+            advance(stringLiteral.length() + 2);
             return new Token(TokenType.STRING_LITERAL, stringLiteral);
         }
 
@@ -141,19 +136,32 @@ public class Lexer {
             advance(symbol.length());
 
             switch (symbol) {
-                case ";": return new Token(TokenType.END, symbol);
-                case "(": return new Token(TokenType.LEFT_PAREN, symbol);
-                case ")": return new Token(TokenType.RIGHT_PAREN, symbol);
-                case ",": return new Token(TokenType.COMMA, symbol);
-                case "=": return new Token(TokenType.EQUALS, symbol);
-                case ">": return new Token(TokenType.GREATER_THAN, symbol);
-                case "<": return new Token(TokenType.LESS_THAN, symbol);
-                case ">=": return new Token(TokenType.GREATER_EQUALS, symbol);
-                case "<=": return new Token(TokenType.LESS_EQUALS, symbol);
-                case "!=": return new Token(TokenType.NOT_EQUALS, symbol);
-                case "==": return new Token(TokenType.EQUALS, symbol);
-                case "*": return new Token(TokenType.ASTERISK, symbol);
-                default: throw new InvalidSyntaxException(" Unrecognized symbol: " + symbol);
+                case ";":
+                    return new Token(TokenType.END, symbol);
+                case "(":
+                    return new Token(TokenType.LEFT_PAREN, symbol);
+                case ")":
+                    return new Token(TokenType.RIGHT_PAREN, symbol);
+                case ",":
+                    return new Token(TokenType.COMMA, symbol);
+                case "=":
+                    return new Token(TokenType.EQUALS, symbol);
+                case ">":
+                    return new Token(TokenType.GREATER_THAN, symbol);
+                case "<":
+                    return new Token(TokenType.LESS_THAN, symbol);
+                case ">=":
+                    return new Token(TokenType.GREATER_EQUALS, symbol);
+                case "<=":
+                    return new Token(TokenType.LESS_EQUALS, symbol);
+                case "!=":
+                    return new Token(TokenType.NOT_EQUALS, symbol);
+                case "==":
+                    return new Token(TokenType.EQUALS, symbol);
+                case "*":
+                    return new Token(TokenType.ASTERISK, symbol);
+                default:
+                    throw new InvalidSyntaxException(" Unrecognized symbol: " + symbol);
             }
         }
 
@@ -161,10 +169,6 @@ public class Lexer {
         throw new InvalidSyntaxException(" Unrecognized character: " + unrecognizedChar);
     }
 
-    /**
-     * Advance the position by the specified amount
-     * @param amount Amount to advance
-     */
     private void advance(int amount) {
         for (int i = 0; i < amount; i++) {
             position++;

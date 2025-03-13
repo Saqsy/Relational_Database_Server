@@ -30,7 +30,8 @@ public class QueryParser {
             try {
                 tokenizer = new Tokenizer(query);
                 return parseCommandType();
-            } catch (InvalidSyntaxException | InvalidCommandException | RuntimeException | DatabaseOperationException e) {
+            } catch (InvalidSyntaxException | InvalidCommandException | RuntimeException |
+                     DatabaseOperationException e) {
                 Logger.logResult(e.getMessage());
                 return Result.FAILURE;
             }
@@ -84,7 +85,7 @@ public class QueryParser {
         if (type == TokenType.DATABASE) {
             Token DBname = tokenizer.nextToken();
             return operationHandler.createDatabase(DBname.getValue());
-        } else if (type == TokenType.TABLE) {
+        } else {
             Token tableName = tokenizer.nextToken();
             List<String> attributes = new ArrayList<>();
             Token token = tokenizer.nextToken();
@@ -96,8 +97,6 @@ public class QueryParser {
                 }
             }
             return operationHandler.createTable(tableName.getValue(), attributes);
-        } else {
-            throw new InvalidSyntaxException(" Error in create statement");
         }
     }
 
@@ -129,10 +128,10 @@ public class QueryParser {
         }
         tokenizer.nextToken(); // )
         tokenizer.expect(TokenType.RIGHT_PAREN);
-        return operationHandler.insertIntoTable(tableName.getValue(),values);
+        return operationHandler.insertIntoTable(tableName.getValue(), values);
     }
 
-    private List<String> parseValueList() throws InvalidSyntaxException {
+    private List<String> parseValueList() {
         List<String> values = new ArrayList<>();
         Token token = tokenizer.nextToken(); // (
         values.add(token.getValue().strip());
@@ -160,12 +159,12 @@ public class QueryParser {
             tokenizer.nextToken(); // WHERE
             condition = parseCondition();
         }
-        return operationHandler.selectFromTable(tableName.getValue(),attributes,condition);
+        return operationHandler.selectFromTable(tableName.getValue(), attributes, condition);
     }
 
     private String parseCondition() {
         StringBuilder condition = new StringBuilder();
-        while(tokenizer.getCurrentToken() != null && tokenizer.getCurrentToken().getType() != TokenType.END) {
+        while (tokenizer.getCurrentToken() != null && tokenizer.getCurrentToken().getType() != TokenType.END) {
             condition.append(tokenizer.getCurrentToken().getValue()).append(" ");
             tokenizer.nextToken();
         }
@@ -227,18 +226,19 @@ public class QueryParser {
         switch (alterationType.getType()) {
             case ADD:
             case DROP:
-            break;
-            default: throw new InvalidSyntaxException(" Missing alteration type");
+                break;
+            default:
+                throw new InvalidSyntaxException(" Missing alteration type");
         }
         Token attributeName = tokenizer.nextToken();
-        tokenizer.expect(TokenType.IDENTIFIER," Expected attribute name");
+        tokenizer.expect(TokenType.IDENTIFIER, " Missing attribute name");
         return operationHandler.alterTable(tableName.getValue(), alterationType.getValue(), attributeName.getValue());
     }
 
     private Result parseUpdate() throws InvalidSyntaxException, DatabaseOperationException {
         tokenizer.nextToken(); // UPDATE
         Token tableName = tokenizer.getCurrentToken();
-        tokenizer.expect(TokenType.IDENTIFIER," Expected table name");
+        tokenizer.expect(TokenType.IDENTIFIER, " Expected table name");
         tokenizer.nextToken(); // SET
         tokenizer.expect(TokenType.SET);
         Map<String, String> nameValuePairs = parseNameValueList();
@@ -274,19 +274,19 @@ public class QueryParser {
     private Result parseJoin() throws InvalidSyntaxException, DatabaseOperationException {
         tokenizer.nextToken(); // JOIN
         Token tableName1 = tokenizer.getCurrentToken();
-        tokenizer.expect(TokenType.IDENTIFIER," Missing Table Name");
+        tokenizer.expect(TokenType.IDENTIFIER, " Missing Table Name");
         tokenizer.nextToken(); // AND
         tokenizer.expect(TokenType.AND);
         Token tableName2 = tokenizer.nextToken();
-        tokenizer.expect(TokenType.IDENTIFIER," Missing Second Table Name");
+        tokenizer.expect(TokenType.IDENTIFIER, " Missing Second Table Name");
         tokenizer.nextToken(); // ON
         tokenizer.expect(TokenType.ON);
         Token attributeName1 = tokenizer.nextToken();
-        tokenizer.expect(TokenType.IDENTIFIER," Missing attribute Name");
+        tokenizer.expect(TokenType.IDENTIFIER, " Missing attribute Name");
         tokenizer.nextToken(); // AND
         tokenizer.expect(TokenType.AND);
         Token attributeName2 = tokenizer.nextToken();
-        tokenizer.expect(TokenType.IDENTIFIER," Missing second attribute Name");
+        tokenizer.expect(TokenType.IDENTIFIER, " Missing second attribute Name");
         return operationHandler.joinTables(tableName1.getValue(), tableName2.getValue(), attributeName1.getValue(), attributeName2.getValue());
     }
 }

@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 
 public class Row {
 
-    LinkedHashMap<Header,String> value = new LinkedHashMap<>();
+    LinkedHashMap<Header, String> value = new LinkedHashMap<>();
 
     public String getColumnValue(Header header) {
         return value.get(header);
